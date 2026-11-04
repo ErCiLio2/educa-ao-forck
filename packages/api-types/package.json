@@ -1,0 +1,13 @@
+{
+  "name": "@educa/api-types",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tipos TypeScript gerados a partir do contrato OpenAPI da Educa API (não editar index.d.ts à mão)",
+  "types": "index.d.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "typescript": "^5.7.2"
+  }
+}

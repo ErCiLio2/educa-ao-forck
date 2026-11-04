@@ -1,0 +1,35 @@
+# Quem tem de rever cada área. Com "Require review from Code Owners" activo nas branches protegidas,
+# um PR que toque nestes caminhos só entra com a aprovação do responsável.
+#
+# Responsável principal: @ErCiLio2 (Ercilio Julio).
+# Quando a equipa estiver criada em github.com/orgs/SOMATEC-AO/teams, substituir por
+# @SOMATEC-AO/eduka-maintainers para delegar revisões a múltiplos mantenedores.
+
+*                                         @ErCiLio2
+
+# Autenticação, sessões, MFA, perfis, consentimento de menores
+/apps/api/src/modules/auth/               @ErCiLio2
+/apps/api/src/modules/guardians/          @ErCiLio2
+/apps/api/src/modules/admin/              @ErCiLio2
+
+# Dinheiro
+/apps/api/src/modules/payments/           @ErCiLio2
+
+# Primitivas de segurança partilhadas (cifra, env, auditoria, storage, eventos)
+/apps/api/src/shared/core/                @ErCiLio2
+
+# Base de dados: schema e migrações
+/apps/api/prisma/                         @ErCiLio2
+
+# O contrato é a ligação à web e ao mobile
+/apps/api/openapi.json                    @ErCiLio2
+/packages/api-types/                      @ErCiLio2
+
+# Infra, CI e as próprias regras do repositório
+/.github/                                 @ErCiLio2
+/docker-compose.yml                       @ErCiLio2
+/docker/                                  @ErCiLio2
+/scripts/git-hooks/                       @ErCiLio2
+/commitlint.config.mjs                    @ErCiLio2
+/CLAUDE.md                                @ErCiLio2
+/CONTRIBUTING.md                          @ErCiLio2

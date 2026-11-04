@@ -1,0 +1,241 @@
+name: CI
+
+on:
+  push:
+    branches: [main, dev, api, web, mobile]
+  pull_request:
+
+permissions:
+  contents: read
+  pull-requests: read
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  NODE_VERSION: '22'
+  SKIP_INSTALL_SIMPLE_GIT_HOOKS: '1' # o script "prepare" não instala hooks no CI
+
+jobs:
+  repo-rules:
+    name: Regras do repositório
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # o commitlint precisa do histórico do PR
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # Os hooks locais podem ser contornados (--no-verify): o CI volta a verificar tudo
+      - name: Testes das regras (hooks, commitlint)
+        run: pnpm test:repo
+
+      - name: Sem ficheiros proibidos nem segredos versionados
+        run: pnpm check:tracked
+
+      - name: Mensagens dos commits (Conventional Commits em português)
+        if: github.event_name == 'pull_request'
+        env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: pnpm exec commitlint --from "$BASE" --to "$HEAD" --verbose
+
+      # Com "squash merge" o título do PR passa a ser a mensagem do commit na main
+      - name: Título do PR
+        if: github.event_name == 'pull_request'
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s' "$PR_TITLE" | pnpm exec commitlint
+
+      # Regras de roteamento de PRs entre branches de integração:
+      #   · josias/yoane → só web
+      #   · api/mobile → só ErCiLio2 pode abrir PR
+      #   · api/web/mobile → só podem mergiar para dev (nunca para main)
+      #   · dev → main requer aprovação explícita de ErCiLio2
+      - name: Roteamento e autoria de PRs
+        if: github.event_name == 'pull_request'
+        env:
+          HEAD_REF: ${{ github.head_ref }}
+          BASE_REF: ${{ github.base_ref }}
+          PR_AUTHOR: ${{ github.event.pull_request.user.login }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node --input-type=module <<'EOF'
+          import { execFileSync } from 'node:child_process';
+          import { PERSONAL_BRANCH_PR_TARGET, exclusiveAuthorViolation, integrationBaseViolation } from './scripts/git-hooks/lib.mjs';
+
+          const { HEAD_REF, BASE_REF, PR_AUTHOR, PR_NUMBER, REPO, GH_TOKEN } = process.env;
+
+          // 1. Destino de branches pessoais (josias/yoane → só web)
+          const requiredBase = PERSONAL_BRANCH_PR_TARGET.get(HEAD_REF);
+          if (requiredBase && BASE_REF !== requiredBase) {
+            console.error(`\n✖ A branch \`${HEAD_REF}\` só pode abrir PR para \`${requiredBase}\`.`);
+            console.error(`  Destino actual: \`${BASE_REF}\`. Altere o destino do PR.\n`);
+            process.exit(1);
+          }
+
+          // 2. api e mobile são exclusivas de ErCiLio2
+          const exclusive = exclusiveAuthorViolation(BASE_REF, PR_AUTHOR);
+          if (exclusive) {
+            console.error(`\n✖ A branch \`${BASE_REF}\` é exclusiva de @${exclusive}.`);
+            console.error(`  O PR foi aberto por @${PR_AUTHOR}.\n`);
+            process.exit(1);
+          }
+
+          // 3. api/web/mobile só podem mergiar para dev (nunca para main nem dev saltando)
+          const requiredIntegrationBase = integrationBaseViolation(HEAD_REF, BASE_REF);
+          if (requiredIntegrationBase) {
+            console.error(`\n✖ A branch \`${HEAD_REF}\` só pode mergiar para \`${requiredIntegrationBase}\`.`);
+            console.error(`  Destino actual: \`${BASE_REF}\`. api, web e mobile nunca vão directamente para main.\n`);
+            process.exit(1);
+          }
+
+          // 4. dev → main requer aprovação explícita de ErCiLio2
+          if (HEAD_REF === 'dev' && BASE_REF === 'main') {
+            const reviews = JSON.parse(execFileSync(
+              'gh', ['api', `repos/${REPO}/pulls/${PR_NUMBER}/reviews`, '--paginate'],
+              { encoding: 'utf8', env: { ...process.env, GH_TOKEN } }
+            ));
+            const approved = reviews.some(r => r.state === 'APPROVED' && r.user?.login === 'ErCiLio2');
+            if (!approved) {
+              console.error('\n✖ PRs de dev para main requerem aprovação de @ErCiLio2.');
+              console.error('  Peça a revisão e aguarde a aprovação antes de mergiar.\n');
+              process.exit(1);
+            }
+          }
+          EOF
+
+  quality:
+    name: Lint, tipos, build e testes unitários
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4 # versão lida de "packageManager" no package.json
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Prisma Client
+        run: pnpm --filter educa-api db:generate
+
+      # svelte-kit sync gera os tipos de $env/static/public a partir das variáveis de ambiente;
+      # sem um .env o PUBLIC_API_URL fica fora dos tipos gerados e o typecheck falha no CI.
+      - name: Env web (typecheck)
+        run: cp apps/web/.env.example apps/web/.env
+
+      # Inclui as fronteiras de módulo (RNF-MAN-01), ver apps/api/eslint.config.mjs
+      - name: Lint
+        run: pnpm lint
+
+      - name: Tipos
+        run: pnpm typecheck
+
+      # O contrato (openapi.json + tipos TypeScript) é gerado do código: se alguém mexer numa rota ou num schema e
+      # não o regenerar, esta etapa falha. SvelteKit e Flutter geram os clientes a partir deste ficheiro.
+      - name: Contrato OpenAPI actualizado
+        run: pnpm contract:check
+
+      - name: Build
+        run: pnpm build
+
+      - name: Testes unitários (segregação de perfis)
+        run: pnpm test
+
+      - name: Validar docker-compose
+        run: docker compose config -q
+
+      - name: Auditoria de dependências (produção)
+        run: |
+          # GHSA-mrhx-c7xc-m3w5: afecta zod >=4.0.0 <4.6.6 (código novo do v4); esta instalação é v3 — falso positivo
+          pnpm audit --prod --audit-level=high --json 2>/dev/null | node -e "
+            const d=JSON.parse(require('fs').readFileSync('/dev/stdin','utf8'));
+            const ignore=new Set(['GHSA-mrhx-c7xc-m3w5']);
+            const highs=Object.values(d.advisories??{}).filter(a=>['high','critical'].includes(a.severity)&&!ignore.has(a.github_advisory_id??''));
+            if(highs.length){console.error(JSON.stringify(highs,null,2));process.exit(1);}
+            console.log('Nenhuma vulnerabilidade high/critical (excluídos falsos positivos).');
+          "
+
+  integration:
+    name: Testes de integração (Postgres, PgBouncer, Redis, MinIO)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      # A aplicação liga-se pelo PgBouncer (como em produção); as migrações vão directas ao Postgres
+      # connection_limit > 1 é essencial: com 1 ligação o Prisma serializa os pedidos e os testes de
+      # concorrência (capacidade das aulas, saldo de horas) não exercitariam os bloqueios da BD
+      DATABASE_URL: postgresql://educa_user:educa_pass@127.0.0.1:6432/educa?pgbouncer=true&connection_limit=10
+      DIRECT_URL: postgresql://educa_user:educa_pass@127.0.0.1:5432/educa
+      REDIS_URL: redis://127.0.0.1:6380
+      ACCESS_TOKEN_SECRET: ci-access-secret-0123456789abcdef0123456789
+      REFRESH_TOKEN_SECRET: ci-refresh-secret-0123456789abcdef012345678
+      MFA_ENCRYPTION_KEY: 0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef
+      SANDBOX_WEBHOOK_SECRET: ci-payment-webhook-secret-0123456789abcd
+      S3_ENDPOINT: http://127.0.0.1:9100
+      S3_BUCKET: educa-private
+      S3_ACCESS_KEY: educa_minio
+      S3_SECRET_KEY: educa_minio_secret
+      S3_FORCE_PATH_STYLE: 'true'
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      - name: Prisma Client
+        run: pnpm --filter educa-api db:generate
+
+      # Sem login o Docker Hub rejeita pulls de runners partilhados (rate limit anónimo).
+      # postgres e redis são imagens oficiais sem restrições; o MinIO é construído
+      # localmente (docker/minio/Dockerfile) para evitar problemas de acesso a registries.
+      - name: Login no Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      # Usa o mesmo docker-compose.yml do desenvolvimento: valida-o em cada execução.
+      # minio-init é um serviço one-shot (termina com código 0); --wait trata qualquer
+      # saída como falha, por isso os daemons sobem primeiro e o init corre à parte.
+      - name: Infra (Postgres, PgBouncer, Redis, MinIO)
+        run: docker compose up -d --build --wait postgres pgbouncer redis minio
+
+      - name: Criar bucket MinIO
+        run: docker compose run --rm minio-init
+
+      - name: Migrações
+        run: pnpm --filter educa-api db:migrate:deploy
+
+      - name: Testes de integração
+        run: pnpm test:int
+
+      - name: Logs da infra (em caso de falha)
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+
+      - name: Desligar infra
+        if: always()
+        run: docker compose down -v

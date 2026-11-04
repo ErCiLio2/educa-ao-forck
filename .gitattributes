@@ -1,0 +1,3 @@
+# Gerados a partir do código (pnpm contract:build): não editar à mão, e ficam recolhidos nos diffs
+apps/api/openapi.json linguist-generated=true
+packages/api-types/index.d.ts linguist-generated=true

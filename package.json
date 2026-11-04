@@ -1,0 +1,36 @@
+{
+  "name": "educa",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.20.0",
+  "scripts": {
+    "dev:api": "pnpm --filter educa-api dev",
+    "build": "pnpm -r build",
+    "docker:up": "docker compose up -d",
+    "docker:down": "docker compose down",
+    "docker:logs": "docker compose logs -f",
+    "lint": "pnpm -r lint",
+    "typecheck": "pnpm -r typecheck",
+    "test": "pnpm -r test",
+    "test:int": "pnpm --filter educa-api test:int",
+    "contract:build": "pnpm --filter educa-api contract:build",
+    "contract:check": "pnpm --filter educa-api contract:build && git diff --exit-code -- apps/api/openapi.json packages/api-types/index.d.ts",
+    "prepare": "simple-git-hooks",
+    "test:repo": "node --test \"scripts/git-hooks/*.test.mjs\"",
+    "check:tracked": "node scripts/git-hooks/check-tracked.mjs",
+    "commitlint": "commitlint"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "simple-git-hooks": "^2.14.0"
+  },
+  "simple-git-hooks": {
+    "pre-commit": "node scripts/git-hooks/pre-commit.mjs",
+    "commit-msg": "pnpm exec commitlint --edit \"$1\"",
+    "pre-push": "node scripts/git-hooks/pre-push.mjs"
+  }
+}

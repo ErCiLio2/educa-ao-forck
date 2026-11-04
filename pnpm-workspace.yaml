@@ -1,0 +1,17 @@
+packages:
+  - 'apps/*'
+  - 'packages/*'
+
+# GHSA-mrhx-c7xc-m3w5: afecta zod >= 4.0.0 < 4.6.6; esta instalação é v3 que não tem o código vulnerável
+auditConfig:
+  ignoreCves:
+    - GHSA-mrhx-c7xc-m3w5
+
+allowBuilds:
+  '@prisma/client': true
+  '@prisma/engines': true
+  argon2: true
+  esbuild: true
+  msgpackr-extract: true
+  prisma: true
+  simple-git-hooks: false # instalado explicitamente pelo script "prepare" (sem postinstall implícito)

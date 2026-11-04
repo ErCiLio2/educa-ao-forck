@@ -1,0 +1,107 @@
+/* eDuca — tokens de design (Tailwind CSS v4) */
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  /* Escala de raio */
+  --radius-sm:   calc(var(--radius) * 0.5);
+  --radius-md:   calc(var(--radius) * 0.75);
+  --radius-lg:   var(--radius);
+  --radius-xl:   calc(var(--radius) * 1.5);
+  --radius-2xl:  calc(var(--radius) * 2);
+  --radius-pill: 9999px;
+
+  /* Cores → variáveis CSS runtime (mudam com o tema) */
+  --color-background:          var(--background);
+  --color-surface:             var(--surface);
+  --color-foreground:          var(--foreground);
+  --color-muted:               var(--muted);
+  --color-muted-foreground:    var(--muted-foreground);
+  --color-border:              var(--border);
+  --color-input:               var(--input);
+  --color-ring:                var(--ring);
+
+  --color-primary:             var(--primary);
+  --color-primary-foreground:  var(--primary-foreground);
+
+  --color-accent:              var(--accent);
+  --color-accent-foreground:   var(--accent-foreground);
+
+  --color-destructive:         var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  /* Tons semânticos dos badges (fixos, não mudam com dark) */
+  --color-tone-mint:       #dff5eb;
+  --color-tone-mint-fg:    #328e62;
+  --color-tone-lavender:   #e9e4ff;
+  --color-tone-lavender-fg:#6653a8;
+  --color-tone-peach:      #ffe7dc;
+  --color-tone-peach-fg:   #bf664c;
+  --color-tone-yellow:     #fff0cd;
+  --color-tone-yellow-fg:  #ad7b15;
+}
+
+/* ── Light (predefinido) ─────────────────────────────────── */
+:root {
+  color-scheme: light;
+
+  --background:            oklch(0.965 0.007 91);   /* #f4f3ee — creme quente */
+  --surface:               oklch(1 0 0);             /* #ffffff */
+  --foreground:            oklch(0.145 0 0);         /* #171717 */
+  --muted:                 oklch(0.930 0.006 91);
+  --muted-foreground:      oklch(0.480 0.010 91);
+  --border:                oklch(0.900 0.008 91);
+  --input:                 oklch(0.900 0.008 91);
+  --ring:                  oklch(0.145 0 0);
+
+  --primary:               oklch(0.145 0 0);         /* #171717 — botão CTA preto */
+  --primary-foreground:    oklch(0.985 0 0);         /* branco */
+
+  --accent:                oklch(0.920 0.195 103);   /* #ffe600 — amarelo eDuca */
+  --accent-foreground:     oklch(0.145 0 0);         /* preto sobre amarelo */
+
+  --destructive:           oklch(0.577 0.220 25);    /* vermelho */
+  --destructive-foreground:oklch(0.985 0 0);
+
+  --radius: 0.75rem;
+}
+
+/* ── Dark automático (preferência do sistema) ─────────────── */
+@media (prefers-color-scheme: dark) {
+  :root:not(.light) {
+    color-scheme: dark;
+    --background:            oklch(0.115 0.005 91);
+    --surface:               oklch(0.170 0.005 91);
+    --foreground:            oklch(0.965 0.007 91);
+    --muted:                 oklch(0.225 0.005 91);
+    --muted-foreground:      oklch(0.590 0.008 91);
+    --border:                oklch(0.245 0.005 91);
+    --input:                 oklch(0.255 0.005 91);
+    --ring:                  oklch(0.640 0.010 91);
+    --primary:               oklch(0.965 0.007 91);
+    --primary-foreground:    oklch(0.145 0 0);
+    --accent:                oklch(0.920 0.195 103);
+    --accent-foreground:     oklch(0.145 0 0);
+    --destructive:           oklch(0.650 0.220 25);
+    --destructive-foreground:oklch(0.985 0 0);
+  }
+}
+
+/* ── Dark forçado por classe ─────────────────────────────── */
+.dark {
+  color-scheme: dark;
+  --background:            oklch(0.115 0.005 91);
+  --surface:               oklch(0.170 0.005 91);
+  --foreground:            oklch(0.965 0.007 91);
+  --muted:                 oklch(0.225 0.005 91);
+  --muted-foreground:      oklch(0.590 0.008 91);
+  --border:                oklch(0.245 0.005 91);
+  --input:                 oklch(0.255 0.005 91);
+  --ring:                  oklch(0.640 0.010 91);
+  --primary:               oklch(0.965 0.007 91);
+  --primary-foreground:    oklch(0.145 0 0);
+  --accent:                oklch(0.920 0.195 103);
+  --accent-foreground:     oklch(0.145 0 0);
+  --destructive:           oklch(0.650 0.220 25);
+  --destructive-foreground:oklch(0.985 0 0);
+}

@@ -1,0 +1,32 @@
+# Dependências e builds
+node_modules/
+dist/
+build/
+.svelte-kit/
+coverage/
+*.tsbuildinfo
+
+# Segredos e ambiente: só o .env.example é versionado
+.env
+.env.*
+!.env.example
+*.env.local
+*.pem
+*.key
+
+# Editor e sistema
+.vscode/
+.idea/
+.DS_Store
+*.log
+.claude/
+
+# Artefactos de testes e ferramentas locais
+.playwright-mcp/
+
+# Screenshots avulsas na raiz (artefactos de sessões de testes manuais)
+sala-*.png
+
+# Documentos binários do cliente (PDFs, Word…): ficam fora do Git; a fonte de verdade em docs/ são os .md
+*.pdf
+*.docx

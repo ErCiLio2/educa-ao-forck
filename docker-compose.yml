@@ -1,0 +1,114 @@
+# Infra de DESENVOLVIMENTO. Credenciais fixas e portos só em 127.0.0.1; nunca usar em produção.
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: educa-postgres
+    environment:
+      POSTGRES_DB: educa
+      POSTGRES_USER: educa_user
+      POSTGRES_PASSWORD: educa_pass
+    ports:
+      - "127.0.0.1:${POSTGRES_HOST_PORT:-5432}:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U educa_user -d educa"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  pgbouncer:
+    build:
+      context: ./docker/pgbouncer
+      dockerfile: Dockerfile
+    image: educa-pgbouncer:local
+    container_name: educa-pgbouncer
+    ports:
+      - "127.0.0.1:${PGBOUNCER_HOST_PORT:-6432}:5432"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  redis:
+    image: redis:7-alpine
+    container_name: educa-redis
+    command: redis-server --appendonly yes
+    ports:
+      - "127.0.0.1:${REDIS_HOST_PORT:-6380}:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  minio:
+    build:
+      context: ./docker/minio
+      dockerfile: Dockerfile
+    image: educa-minio:local
+    container_name: educa-minio
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: educa_minio
+      MINIO_ROOT_PASSWORD: educa_minio_secret
+    ports:
+      - "127.0.0.1:${MINIO_HOST_PORT:-9100}:9000"
+      - "127.0.0.1:9101:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  livekit:
+    image: livekit/livekit-server:latest
+    container_name: educa-livekit
+    command: --config /livekit.yaml
+    ports:
+      - "${LIVEKIT_HOST_PORT:-7880}:7880"
+      - "7881:7881"
+      - "7882:7882/udp"
+    configs:
+      - source: livekit_config
+        target: /livekit.yaml
+
+  # Cria o bucket privado (sem acesso anónimo) e termina
+  minio-init:
+    build:
+      context: ./docker/minio
+      dockerfile: Dockerfile
+    image: educa-minio:local
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 educa_minio educa_minio_secret &&
+      mc mb --ignore-existing local/educa-private &&
+      mc anonymous set none local/educa-private
+      "
+
+configs:
+  livekit_config:
+    content: |
+      port: 7880
+      rtc:
+        udp_port: 7882
+        tcp_port: 7881
+        use_external_ip: false
+        # IP anunciado nos candidatos ICE — ajustar por cenário:
+        # mesmo PC (Docker rootless) → IP LAN da máquina | produção → use_external_ip: true
+        node_ip: 10.12.1.2
+      keys:
+        educa_livekit: educa_livekit_secret_dev_minimum32x
+      logging:
+        level: warn
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
